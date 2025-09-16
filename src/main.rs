@@ -1,7 +1,12 @@
 use std::env::{self, VarError};
+use std::sync::Arc;
 
-use axum::{response::Html, routing::get, Router};
+use axum::{extract::State, response::Html, routing::get, Router};
+use parking_lot::RwLock;
+use regex::Regex;
 use tokio::net::TcpListener;
+use tokio::process::Command;
+use tokio::time::{sleep, Duration, Instant};
 
 #[derive(Debug)]
 enum Error {
@@ -11,17 +16,40 @@ enum Error {
     Runtime(String),
 }
 
-async fn onion_handler() -> Html<&'static str> {
-    Html("<h1>Hello!</h1><p>You are connected via the Tor network (onion service).</p>")
+#[derive(Clone)]
+struct AppState {
+    onion_address: Arc<RwLock<Option<String>>>,
 }
 
-async fn public_handler() -> Html<&'static str> {
-    Html("<h1>Hello!</h1><p>You are connected via the public endpoint. If you reached this through the Tor network, your connection is indirect; otherwise, you're connected directly.</p>")
+async fn onion_handler(State(state): State<Arc<AppState>>) -> Html<String> {
+    let maybe_addr = state.onion_address.read().clone();
+    match maybe_addr {
+        Some(addr) => Html(format!(
+            "<h1>Hello!</h1><p>You are connected via the Tor network (onion service).</p><p>Onion address: <a href=\"http://{addr}\" rel=\"noopener noreferrer\">{addr}</a></p>"
+        )),
+        None => Html("<h1>Hello!</h1><p>You are connected via the Tor network (onion service).</p><p>Discovering onion address...</p>".to_string()),
+    }
+}
+
+async fn public_handler(State(state): State<Arc<AppState>>) -> Html<String> {
+    let maybe_addr = state.onion_address.read().clone();
+    match maybe_addr {
+        Some(addr) => Html(format!("<h1>Hello!</h1><p>You are connected via the public endpoint. If you reached this through the Tor network, your connection is indirect; otherwise, you're connected directly.</p><p>Tor onion service: <a href=\"http://{addr}\" rel=\"noopener noreferrer\">{addr}</a></p>")),
+        None => Html("<h1>Hello!</h1><p>You are connected via the public endpoint. If you reached this through the Tor network, your connection is indirect; otherwise, you're connected directly.</p><p>Onion address is not available yet.</p>".to_string()),
+    }
 }
 
 async fn run() -> Result<(), Error> {
-    let onion_app = Router::new().route("/", get(onion_handler));
-    let public_app = Router::new().route("/", get(public_handler));
+    let state = Arc::new(AppState {
+        onion_address: Arc::new(RwLock::new(None)),
+    });
+
+    let onion_app = Router::new()
+        .route("/", get(onion_handler))
+        .with_state(state.clone());
+    let public_app = Router::new()
+        .route("/", get(public_handler))
+        .with_state(state.clone());
 
     const DEFAULT_ONION_PORT: u16 = 3000;
     let onion_listener = TcpListener::bind(format!("0.0.0.0:{}", DEFAULT_ONION_PORT))
@@ -60,6 +88,53 @@ async fn run() -> Result<(), Error> {
             .local_addr()
             .map_err(|e| Error::Startup(format!("Unable to get local address: {e:?}")))?
     );
+
+    // Fire-and-forget task to discover the onion address from arti.
+    {
+        let state_for_task = state.clone();
+        tokio::spawn(async move {
+            // Delay 2 seconds after startup
+            sleep(Duration::from_secs(2)).await;
+            let deadline = Instant::now() + Duration::from_secs(30);
+            let re = Regex::new(r"^[a-z2-7]{56}\.onion$").expect("valid regex");
+            loop {
+                let output = Command::new("./arti")
+                    .arg("-c")
+                    .arg("/etc/arti/onionservice.toml")
+                    .arg("hss")
+                    .arg("--nickname")
+                    .arg("onimages")
+                    .arg("onion-address")
+                    .output()
+                    .await;
+
+                if let Ok(output) = output {
+                    if output.status.success() {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        if let Some(found) = stdout
+                            .lines()
+                            .map(|s| s.trim())
+                            .find(|line| re.is_match(line))
+                        {
+                            {
+                                let mut lock = state_for_task.onion_address.write();
+                                *lock = Some(found.to_string());
+                            }
+                            println!("Discovered onion address: {}", found);
+                            break;
+                        }
+                    }
+                }
+
+                if Instant::now() >= deadline {
+                    println!("Failed to acquire onion address within timeout");
+                    break;
+                }
+
+                sleep(Duration::from_secs(5)).await;
+            }
+        });
+    }
 
     let (onion_res, public_res) = tokio::join!(
         axum::serve(onion_listener, onion_app),

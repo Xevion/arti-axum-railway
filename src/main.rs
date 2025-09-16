@@ -52,7 +52,9 @@ async fn run() -> Result<(), Error> {
         .with_state(state.clone());
 
     const DEFAULT_ONION_PORT: u16 = 3000;
-    let onion_listener = TcpListener::bind(format!("0.0.0.0:{}", DEFAULT_ONION_PORT))
+
+    // Bind to 127.0.0.1 to prevent external non-proxied access
+    let onion_listener = TcpListener::bind(format!("127.0.0.1:{}", DEFAULT_ONION_PORT))
         .await
         .map_err(|e| Error::Startup(format!("Unable to bind onion listener: {e:?}")))?;
     println!(
@@ -68,7 +70,10 @@ async fn run() -> Result<(), Error> {
         Ok(string) if string.trim().is_empty() => Ok(DEFAULT_PORT),
         Err(VarError::NotPresent) => Ok(DEFAULT_PORT),
         Ok(port) => match port.parse::<u16>() {
-            Ok(port) => Ok(port),
+            Ok(port) => {
+                println!("Using PORT from environment: {}", port);
+                Ok(port)
+            }
             Err(parse_err) => Err(Error::Startup(format!(
                 "Unable to parse PORT as u16: {parse_err:?}",
             ))),
@@ -78,6 +83,7 @@ async fn run() -> Result<(), Error> {
         ))),
     }?;
 
+    // Bind to 0.0.0.0 to allow external access
     let public_listener = TcpListener::bind(format!("0.0.0.0:{}", public_port))
         .await
         .map_err(|e| Error::Startup(format!("Unable to bind public listener: {e:?}")))?;

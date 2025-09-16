@@ -27,7 +27,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "arti-railway"
+name = "arti-axum-railway"
 version = "0.1.0"
 dependencies = [
  "axum",

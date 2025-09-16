@@ -16,7 +16,7 @@ dns_listen = 0
 [vanguards]
 mode = "lite"
 
-[onion_services."onimages"]
+[onion_services."demo"]
 num_intro_points = 3
 # enable_pow = true
 proxy_ports = [["80", "127.0.0.1:3000"]]

@@ -109,7 +109,7 @@ async fn run() -> Result<(), Error> {
                     .arg("/etc/arti/onionservice.toml")
                     .arg("hss")
                     .arg("--nickname")
-                    .arg("onimages")
+                    .arg("demo")
                     .arg("onion-address")
                     .output()
                     .await;

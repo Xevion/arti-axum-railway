@@ -7,4 +7,4 @@ demo:
 	just demo-address
 
 demo-address:
-	docker exec arti-demo ./arti -c /etc/arti/onionservice.toml hss --nickname onimages onion-address
+	docker exec arti-demo ./arti -c /etc/arti/onionservice.toml hss --nickname demo onion-address

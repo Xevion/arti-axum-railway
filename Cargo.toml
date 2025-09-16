@@ -1,5 +1,5 @@
 [package]
-name = "arti-railway"
+name = "arti-axum-railway"
 license = "MIT"
 authors = ["Xevion"]
 version = "0.1.0"

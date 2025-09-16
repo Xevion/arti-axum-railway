@@ -30,7 +30,7 @@ RUN chown -R app:app /etc/arti /home/app/.local/share/arti
 USER app
 WORKDIR /app
 
-COPY --from=builder /app/target-railway/release/arti-railway .
+COPY --from=builder /app/target-railway/release/arti-axum-railway .
 COPY --from=builder /usr/local/cargo/bin/arti .
 COPY --chmod=755 start.sh .
 

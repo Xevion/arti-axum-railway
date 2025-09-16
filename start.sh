@@ -16,4 +16,4 @@ cleanup() {
 trap cleanup INT TERM EXIT
 
 # Start the Axum webserver in the foreground
-exec ./arti-railway
+exec ./arti-axum-railway

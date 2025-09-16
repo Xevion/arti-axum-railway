@@ -21,7 +21,6 @@ num_intro_points = 3
 # enable_pow = true
 proxy_ports = [["80", "127.0.0.1:3000"]]
 
-
 [storage]
 state_dir = "/etc/arti/state"
 cache_dir = "/etc/arti/cache"

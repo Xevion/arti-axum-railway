@@ -6,6 +6,8 @@ use parking_lot::RwLock;
 use regex::Regex;
 use tokio::net::TcpListener;
 use tokio::process::Command;
+use tokio::signal;
+use tokio::sync::broadcast;
 use tokio::time::{sleep, Duration, Instant};
 
 #[derive(Debug)]
@@ -14,6 +16,45 @@ enum Error {
     Startup(String),
     /// Error occurred after starting
     Runtime(String),
+}
+
+async fn graceful_shutdown() -> broadcast::Receiver<()> {
+    let (tx, rx) = broadcast::channel(1);
+
+    let tx1 = tx.clone();
+    let tx2 = tx;
+
+    tokio::spawn(async move {
+        let ctrl_c = async {
+            signal::ctrl_c()
+                .await
+                .expect("failed to install Ctrl+C handler");
+        };
+
+        #[cfg(unix)]
+        let terminate = async {
+            signal::unix::signal(signal::unix::SignalKind::terminate())
+                .expect("failed to install signal handler")
+                .recv()
+                .await;
+        };
+
+        #[cfg(not(unix))]
+        let terminate = std::future::pending::<()>();
+
+        tokio::select! {
+            _ = ctrl_c => {
+                println!("Received Ctrl+C, shutting down gracefully...");
+                let _ = tx1.send(());
+            },
+            _ = terminate => {
+                println!("Received SIGTERM, shutting down gracefully...");
+                let _ = tx2.send(());
+            },
+        }
+    });
+
+    rx
 }
 
 #[derive(Clone)]
@@ -142,10 +183,25 @@ async fn run() -> Result<(), Error> {
         });
     }
 
-    let (onion_res, public_res) = tokio::join!(
-        axum::serve(onion_listener, onion_app),
-        axum::serve(public_listener, public_app)
-    );
+    // Create shutdown signal
+    let shutdown_rx = graceful_shutdown().await;
+
+    // Clone the receiver for both servers
+    let mut onion_shutdown = shutdown_rx.resubscribe();
+    let mut public_shutdown = shutdown_rx.resubscribe();
+
+    // Start both servers with graceful shutdown
+    let onion_server = axum::serve(onion_listener, onion_app).with_graceful_shutdown(async move {
+        let _ = onion_shutdown.recv().await;
+    });
+
+    let public_server =
+        axum::serve(public_listener, public_app).with_graceful_shutdown(async move {
+            let _ = public_shutdown.recv().await;
+        });
+
+    // Run both servers concurrently
+    let (onion_res, public_res) = tokio::join!(onion_server, public_server);
 
     if let Err(e) = onion_res {
         return Err(Error::Runtime(format!(
@@ -159,7 +215,7 @@ async fn run() -> Result<(), Error> {
         )));
     }
 
-    // Ok will never be returned (until we add a SIGTERM handler for graceful shutdown)
+    println!("Servers shut down gracefully");
     Ok(())
 }
 

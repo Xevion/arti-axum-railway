@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 FROM rust:1.86-bookworm AS base
 WORKDIR /app
+
 RUN apt-get update && apt-get install -y protobuf-compiler libssl-dev pkg-config
 RUN cargo install cargo-chef
 

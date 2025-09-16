@@ -1,0 +1,27 @@
+[application]
+allow_running_as_root = false
+
+[system]
+max_files = 16384
+memory.max = "512 MiB"
+memory.low_water = "64 MiB"
+
+[logging]
+console = "warn"
+
+[proxy]
+socks_listen = 0
+dns_listen = 0
+
+[vanguards]
+mode = "lite"
+
+[onion_services."onimages"]
+num_intro_points = 3
+# enable_pow = true
+proxy_ports = [["80", "127.0.0.1:3000"]]
+
+
+[storage]
+state_dir = "/etc/arti/state"
+cache_dir = "/etc/arti/cache"

@@ -1,0 +1,11 @@
+[package]
+name = "arti-railway"
+license = "MIT"
+authors = ["Xevion"]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.86.0"
+
+[dependencies]
+axum = { version = "0.8.4", features = ["http2"] }
+tokio = { version = "1", features = ["full"] }

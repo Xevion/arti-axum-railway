@@ -1,0 +1,24 @@
+# Rust build artifacts
+/target
+/target-railway
+
+# Cargo
+.cargo/
+# Keep Cargo.lock committed for binaries
+
+# Cargo Chef
+recipe.json
+
+# Editors/OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Environment files
+.env
+.env.*
+
+# Other
+*.log
+

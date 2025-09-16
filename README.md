@@ -1,6 +1,6 @@
 # arti-axum-railway
 
-A demo project for running an Axum server behind an Arti onion service.
+A demo project for running an Axum server behind an Arti onion service. Check it out [on Railway](https://arti-railway-production.up.railway.app).
 
 - A single Dockerfile well-suited for deployment to Railway
 - Proxies connections from the Tor network as an Onion service

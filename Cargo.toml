@@ -1,10 +1,17 @@
 [package]
 name = "arti-axum-railway"
-license = "MIT"
+description = "A demo project for running an Axum server behind an Arti onion service."
 authors = ["Xevion"]
-version = "0.1.0"
+license = "MIT"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.86.0"
+homepage = "arti-railway-production.up.railway.app"
+repository = "https://github.com/Xevion/arti-axum-railway"
+documentation = "https://github.com/Xevion/arti-axum-railway/blob/master/README.md"
+readme = "README.md"
+categories = ["web", "proxy"]
+keywords = ["tor", "onion", "service", "axum", "railway"]
 
 [dependencies]
 axum = { version = "0.8", features = ["http2"] }

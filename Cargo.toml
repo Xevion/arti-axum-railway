@@ -3,7 +3,7 @@ name = "arti-axum-railway"
 description = "A demo project for running an Axum server behind an Arti onion service."
 authors = ["Xevion"]
 license = "MIT"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.86.0"
 homepage = "arti-railway-production.up.railway.app"
@@ -18,3 +18,4 @@ axum = { version = "0.8", features = ["http2"] }
 tokio = { version = "1", features = ["full"] }
 parking_lot = "0.12"
 regex = "1"
+clap = { version = "4.5.48", features = ["derive"] }

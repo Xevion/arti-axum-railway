@@ -1,7 +1,9 @@
 use std::env::{self, VarError};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::{extract::State, response::Html, routing::get, Router};
+use clap::Parser;
 use parking_lot::RwLock;
 use regex::Regex;
 use tokio::net::TcpListener;
@@ -9,6 +11,23 @@ use tokio::process::Command;
 use tokio::signal;
 use tokio::sync::broadcast;
 use tokio::time::{sleep, Duration, Instant};
+
+/// Starts an Axum server, proxying connections from the Tor network as an Onion service.
+#[derive(Debug, Parser)]
+struct CliArgs {
+    /// Path to the arti binary (optional, searches for an 'arti' binary in PATH and current directory)
+    #[arg(short, long)]
+    pub arti: Option<PathBuf>,
+    /// Path to the arti configuration file
+    #[arg(short, long)]
+    pub config: PathBuf,
+    /// Port to bind the onion service to
+    #[arg(short, long, default_value = "3000")]
+    pub onion_port: u16,
+    /// Port to bind the public endpoint to
+    #[arg(short, long, default_value = "8080")]
+    pub public_port: u16,
+}
 
 #[derive(Debug)]
 enum Error {
@@ -150,6 +169,11 @@ async fn public_handler(State(state): State<Arc<AppState>>) -> Html<String> {
 }
 
 async fn run() -> Result<(), Error> {
+    let args = CliArgs::parse();
+
+    let arti_path = args.arti.unwrap_or_else(|| PathBuf::from("./arti"));
+    let arti_config = args.config;
+
     let state = Arc::new(AppState {
         onion_address: Arc::new(RwLock::new(None)),
     });
@@ -161,10 +185,8 @@ async fn run() -> Result<(), Error> {
         .route("/", get(public_handler))
         .with_state(state.clone());
 
-    const DEFAULT_ONION_PORT: u16 = 3000;
-
     // Bind to 127.0.0.1 to prevent external non-proxied access
-    let onion_listener = TcpListener::bind(format!("127.0.0.1:{}", DEFAULT_ONION_PORT))
+    let onion_listener = TcpListener::bind(format!("127.0.0.1:{}", args.onion_port))
         .await
         .map_err(|e| Error::Startup(format!("Unable to bind onion listener: {e:?}")))?;
     println!(
@@ -175,10 +197,9 @@ async fn run() -> Result<(), Error> {
     );
 
     // Acquire the public endpoint's port from the environment
-    const DEFAULT_PORT: u16 = 8080;
     let public_port: u16 = match env::var("PORT") {
-        Ok(string) if string.trim().is_empty() => Ok(DEFAULT_PORT),
-        Err(VarError::NotPresent) => Ok(DEFAULT_PORT),
+        Ok(string) if string.trim().is_empty() => Ok(args.public_port),
+        Err(VarError::NotPresent) => Ok(args.public_port),
         Ok(port) => match port.parse::<u16>() {
             Ok(port) => {
                 println!("Using PORT from environment: {}", port);

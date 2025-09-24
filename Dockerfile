@@ -37,4 +37,4 @@ ARG PORT=
 ENV PORT=${PORT}
 EXPOSE ${PORT}
 
-CMD ["./arti-axum-railway"]
+CMD ["./arti-axum-railway", "--config", "/etc/arti/onionservice.toml"]

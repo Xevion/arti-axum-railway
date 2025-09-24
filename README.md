@@ -8,10 +8,23 @@ A demo project for running an Axum server behind an Arti onion service. Check it
 
 This demo is far more complex than what you're probably looking for, so I'm planning to create a barebones version later on.
 
+- [ ] Setup `arti.xevion.dev` subdomain
+- [ ] Templating, TailwindCSS styling
+- [ ] Cleaner Dockerfile
+- [ ] Persistent storage for persistent onion addresses
+- [ ] Create a barebones version
+- [ ] Dynamic port selection & TOML configuration to avoid conflicts
+- [ ] `Onion-Location` header support
+- [ ] Streamed updates via `multipart/x-mixed-replace` or WebSockets/SSE
+- [ ] `/healthz`, `/torz` healthcheck endpoints
+- [ ] Internationalization via `Accept-Language` header
+- [ ] Structured Logging, `arti` logs conversion
+- [ ] CSP Assets with Integrity
+
 ## Resources
 
 Unfortunately, the [main documentation for Arti](https://tpo.pages.torproject.net/core/arti/) is really quite lacking; their primary documentation includes literally nothing about running an onion service.
 
 - [Default Arti Configuration](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/crates/arti/src/arti-example-config.toml) - Really verbose, but it seems to include everything.
 - [Arti CLI Reference](https://tpo.pages.torproject.net/core/doc/rust/arti/index.html#configuration) - Also includes some of the build features, very useful.
-- [Arti Debian Dockerfile](https://gitlab.torproject.org/tpo/onion-services/onimages/-/blob/main/arti/debian/Dockerfile) ([Config](https://gitlab.torproject.org/tpo/onion-services/onimages/-/blob/main/arti/debian/onionservice.toml)) - If you're using Railway or wanting to create your own Docker image, follow this. [Alpine version](https://gitlab.torproject.org/tpo/onion-services/onimages/-/blob/main/arti/alpine/Dockerfile).
+- [Arti Debian Dockerfile](https://gitlab.torproject.org/tpo/onion-services/onimages/-/blob/main/arti/debian/Dockerfile) ([Config](https://gitlab.torproject.org/tpo/onion-services/onimages/-/blob/main/arti/debian/onionservice.toml)) - If you're using Railway or wanting to create your own Docker image, follow this. Also, [Alpine version](https://gitlab.torproject.org/tpo/onion-services/onimages/-/blob/main/arti/alpine/Dockerfile).

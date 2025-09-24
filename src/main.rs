@@ -18,9 +18,7 @@ enum Error {
     Runtime(String),
 }
 
-async fn graceful_shutdown() -> broadcast::Receiver<()> {
-    let (tx, rx) = broadcast::channel(1);
-
+fn install_signal_forwarders(tx: broadcast::Sender<()>) {
     let tx1 = tx.clone();
     let tx2 = tx;
 
@@ -53,8 +51,79 @@ async fn graceful_shutdown() -> broadcast::Receiver<()> {
             },
         }
     });
+}
 
-    rx
+/// Maximum number of times to relaunch the arti process before exiting the server.
+const ARTI_MAX_RELAUNCHES: usize = 5;
+/// Delay between arti relaunch attempts.
+const ARTI_RESTART_BACKOFF_SECS: u64 = 3;
+
+async fn supervise_arti(
+    mut shutdown: broadcast::Receiver<()>,
+    shutdown_tx: broadcast::Sender<()>,
+) -> Result<(), ()> {
+    let mut attempts: usize = 0;
+
+    loop {
+        if attempts >= ARTI_MAX_RELAUNCHES {
+            eprintln!(
+                "arti restart limit exceeded (>{}), requesting shutdown",
+                ARTI_MAX_RELAUNCHES
+            );
+            let _ = shutdown_tx.send(());
+            return Err(());
+        }
+
+        if attempts > 0 {
+            println!(
+                "restarting arti (attempt {} of {})",
+                attempts + 1,
+                ARTI_MAX_RELAUNCHES
+            );
+        }
+
+        attempts += 1;
+
+        let mut child = match Command::new("./arti")
+            .arg("proxy")
+            .arg("-c")
+            .arg("/etc/arti/onionservice.toml")
+            .kill_on_drop(true)
+            .spawn()
+        {
+            Ok(child) => child,
+            Err(err) => {
+                eprintln!("failed to spawn arti: {:?}", err);
+                sleep(Duration::from_secs(ARTI_RESTART_BACKOFF_SECS)).await;
+                continue;
+            }
+        };
+
+        tokio::select! {
+            status = child.wait() => {
+                match status {
+                    Ok(status) => {
+                        if status.success() {
+                            eprintln!("arti exited successfully (unexpected), will relaunch after backoff");
+                        } else {
+                            eprintln!("arti exited with status {:?}", status.code());
+                        }
+                    }
+                    Err(err) => {
+                        eprintln!("failed to wait on arti: {:?}", err);
+                    }
+                }
+                sleep(Duration::from_secs(ARTI_RESTART_BACKOFF_SECS)).await;
+                // loop to relaunch
+            }
+            _ = shutdown.recv() => {
+                // Received shutdown signal; terminate child and exit
+                let _ = child.start_kill();
+                let _ = child.wait().await;
+                return Ok(());
+            }
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -183,12 +252,17 @@ async fn run() -> Result<(), Error> {
         });
     }
 
-    // Create shutdown signal
-    let shutdown_rx = graceful_shutdown().await;
+    // Create shutdown channel and install signal forwarders
+    let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
+    install_signal_forwarders(shutdown_tx.clone());
 
-    // Clone the receiver for both servers
+    // Clone the receiver for servers and arti supervisor
     let mut onion_shutdown = shutdown_rx.resubscribe();
     let mut public_shutdown = shutdown_rx.resubscribe();
+    let arti_shutdown = shutdown_rx.resubscribe();
+
+    // Start arti supervisor
+    let arti_handle = tokio::spawn(supervise_arti(arti_shutdown, shutdown_tx.clone()));
 
     // Start both servers with graceful shutdown
     let onion_server = axum::serve(onion_listener, onion_app).with_graceful_shutdown(async move {
@@ -215,13 +289,28 @@ async fn run() -> Result<(), Error> {
         )));
     }
 
-    println!("Servers shut down gracefully");
-    Ok(())
+    // Wait for arti supervisor to finish
+    let arti_result = arti_handle.await;
+
+    match arti_result {
+        Ok(Ok(())) => {
+            println!("Servers shut down gracefully");
+            Ok(())
+        }
+        Ok(Err(())) => Err(Error::Runtime("arti restart limit exceeded".to_string())),
+        Err(join_err) => Err(Error::Runtime(format!(
+            "arti supervisor task failed to join: {join_err:?}"
+        ))),
+    }
 }
 
 #[tokio::main]
 async fn main() {
-    if let Err(e) = run().await {
-        eprintln!("error: {e:?}");
+    match run().await {
+        Ok(()) => {}
+        Err(e) => {
+            eprintln!("error: {e:?}");
+            std::process::exit(1);
+        }
     }
 }

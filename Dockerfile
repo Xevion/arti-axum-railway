@@ -32,10 +32,9 @@ WORKDIR /app
 
 COPY --from=builder /app/target-railway/release/arti-axum-railway .
 COPY --from=builder /usr/local/cargo/bin/arti .
-COPY --chmod=755 start.sh .
 
 ARG PORT=
 ENV PORT=${PORT}
 EXPOSE ${PORT}
 
-CMD ["./start.sh"]
+CMD ["./arti-axum-railway"]
